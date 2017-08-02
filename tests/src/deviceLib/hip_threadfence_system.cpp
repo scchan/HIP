@@ -30,43 +30,77 @@ THE SOFTWARE.
 #include <cassert>
 #include <cstdio>
 #include "hip/hip_runtime.h"
-#include <hip/device_functions.h>
+#include "hip/device_functions.h"
+#include "test_common.h"
+
 
 #define HIP_ASSERT(x) (assert((x)==hipSuccess))
 
-__global__ void round_robin(const int id, const int num_dev, const int N, int* data, int* flag) {
-  for (int i = 0; i < N; i++) {
-    while(*flag%num_dev != id) ;
+__host__ void fence_system() {
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+}
 
-    (*data) += 1;
-    __threadfence_system();
-    (*flag) += 1;
-    __threadfence_system();
+__device__ void fence_system() {
+  __threadfence_system();
+}
+
+__host__ __device__ void round_robin(const int id, const int num_dev, const int num_iter, volatile int* data, volatile int* flag) {
+  for (int i = 0; i < num_iter; i++) {
+    while(*flag%num_dev != id)
+      fence_system();  // invalid the cache for read
+
+    (*data)++;
+    fence_system();    // make sure the store to data is sequenced before the store to flag
+    (*flag)++;
+    fence_system();    // invalid the cache to flush out flag
   }
+}
+
+__global__ void gpu_round_robin(const int id, const int num_dev, const int num_iter, volatile int* data, volatile int* flag) {
+  round_robin(id, num_dev, num_iter, data, flag); 
 }
 
 int main() {
 
-  int* data;
-  int* flag;
+  int num_gpus = 0;
+  HIP_ASSERT(hipGetDeviceCount(&num_gpus));
+  if (num_gpus == 0) {
+    passed();
+    return 0;
+  }
 
-  HIP_ASSERT(hipMalloc(&data, sizeof(int)));
-  int init_value = 1000;
-  HIP_ASSERT(hipMemcpy(data, &init_value, sizeof(int), hipMemcpyHostToDevice)); 
+  volatile int* data;
+  HIP_ASSERT(hipHostMalloc(&data, sizeof(int), hipHostMallocCoherent));
+  constexpr int init_data = 1000;
+  *data = init_data;
 
-  HIP_ASSERT(hipMalloc(&flag, sizeof(int)));
-  init_value = 0;
-  HIP_ASSERT(hipMemcpy(flag, &init_value, sizeof(int), hipMemcpyHostToDevice)); 
+  volatile int* flag;
+  HIP_ASSERT(hipHostMalloc(&flag, sizeof(int), hipHostMallocCoherent));
+  *flag = 0;
 
-  constexpr int num_dev = 2;
+  // number of rounds per device
+  constexpr int num_iter = 1000;
+
+  // one CPU thread + 1 kernel/GPU
+  const int num_dev = num_gpus + 1;
+
+  int next_id = 0;
   std::vector<std::thread> threads;
+
+  // create a CPU thread for the round_robin
+  threads.push_back(std::thread(round_robin, next_id++, num_dev, num_iter, data, flag));
+
+  // run one thread per GPU
   dim3 dim_block(1,1,1);
   dim3 dim_grid(1,1,1);
-  for (int i = 0; i < num_dev; i++) {
+
+  // launch one kernel per device for the round robin
+  for (; next_id < num_dev; ++next_id) {
     threads.push_back(std::thread([=]() {
-      HIP_ASSERT(hipSetDevice(i));
-      hipLaunchKernelGGL(round_robin, dim_grid, dim_block, 0, 0x0
-                          , i, num_dev, 2, data, flag);
+      HIP_ASSERT(hipSetDevice(next_id-1));
+      hipLaunchKernelGGL(gpu_round_robin, dim_grid, dim_block, 0, 0x0
+                          , next_id, num_dev, num_iter, data, flag);
+      HIP_ASSERT(hipDeviceSynchronize());
     }));
   }
 
@@ -74,7 +108,21 @@ int main() {
     t.join();
   }
 
-  printf("data: %d\n", *data);
+  int expected_data = init_data + num_dev * num_iter;
+  int expected_flag = num_dev * num_iter;
+
+  bool passed = *data == expected_data 
+                && *flag == expected_flag;
+
+  HIP_ASSERT(hipHostFree((void*)data));
+  HIP_ASSERT(hipHostFree((void*)flag));
+
+  if (passed) {
+    passed();
+  }
+  else {
+    failed("Failed Verification!\n");
+  }
 
   return 0;
 }
