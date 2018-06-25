@@ -30,6 +30,7 @@ THE SOFTWARE.
 #include <hip/hip_vector_types.h>
 #include <hip/hcc_detail/device_library_decls.h>
 #include <hip/hcc_detail/llvm_intrinsics.h>
+#include <stddef.h>
 
 typedef unsigned long ulong;
 typedef unsigned int uint;
@@ -972,8 +973,8 @@ unsigned __smid(void)
 
 // loop unrolling
 static inline __device__ void* __hip_hc_memcpy(void* dst, const void* src, size_t size) {
-    auto dstPtr = static_cast<uint8_t*>(dst);
-    auto srcPtr = static_cast<const uint8_t*>(src);
+    auto dstPtr = static_cast<unsigned char*>(dst);
+    auto srcPtr = static_cast<const unsigned char*>(src);
 
     while (size >= 4u) {
         dstPtr[0] = srcPtr[0];
@@ -997,8 +998,8 @@ static inline __device__ void* __hip_hc_memcpy(void* dst, const void* src, size_
     return dst;
 }
 
-static inline __device__ void* __hip_hc_memset(void* dst, uint8_t val, size_t size) {
-    auto dstPtr = static_cast<uint8_t*>(dst);
+static inline __device__ void* __hip_hc_memset(void* dst, unsigned char val, size_t size) {
+    auto dstPtr = static_cast<unsigned char*>(dst);
 
     while (size >= 4u) {
         dstPtr[0] = val;
@@ -1025,7 +1026,7 @@ static inline __device__ void* memcpy(void* dst, const void* src, size_t size) {
 }
 
 static inline __device__ void* memset(void* ptr, int val, size_t size) {
-    uint8_t val8 = static_cast<uint8_t>(val);
+    unsigned char val8 = static_cast<unsigned char>(val);
     return __hip_hc_memset(ptr, val8, size);
 }
 #endif
