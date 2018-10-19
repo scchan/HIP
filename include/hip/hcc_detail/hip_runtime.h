@@ -187,7 +187,16 @@ extern int HIP_TRACE_API;
 #if __HCC_OR_HIP_CLANG__
 
 // abort
-__device__ void abort();
+#if defined __HCC__
+  __device__
+  __attribute__((always_inline))
+  __attribute__((weak))
+  void abort() { return hc::abort(); }
+#else
+  __device__ void abort();
+#endif
+
+__host__ inline void* __get_dynamicgroupbaseptr() { return nullptr; }
 
 #if __HIP_ARCH_GFX701__ == 0
 
