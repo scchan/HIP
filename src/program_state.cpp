@@ -196,7 +196,7 @@ const unordered_map<hsa_isa_t, vector<vector<char>>>& code_object_blobs() {
                     sub_blob+=tmp.bundled_code_size;
                 }
                 else {
-                    break;
+                    ++sub_blob;
                 }
             }
         }
