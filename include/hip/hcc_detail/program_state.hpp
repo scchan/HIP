@@ -98,6 +98,8 @@ const std::unordered_map<std::uintptr_t, std::vector<std::pair<hsa_agent_t, Kern
 functions();
 const std::unordered_map<std::uintptr_t, std::string>& function_names();
 std::unordered_map<std::string, void*>& globals();
+std::unordered_map<
+    std::string, std::vector<std::pair<std::size_t, std::size_t>>>& kernargs();
 
 hsa_executable_t load_executable(const std::string& file, hsa_executable_t executable,
                                  hsa_agent_t agent);
