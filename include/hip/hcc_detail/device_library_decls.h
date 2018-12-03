@@ -35,6 +35,8 @@ typedef unsigned short ushort;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
+extern "C" __device__ const int __oclc_ISA_version;
+
 extern "C" __device__ __attribute__((const)) bool __ockl_wfany_i32(int);
 extern "C" __device__ __attribute__((const)) bool __ockl_wfall_i32(int);
 extern "C" __device__ uint __ockl_activelane_u32(void);

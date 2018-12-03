@@ -29,6 +29,8 @@ THE SOFTWARE.
 #ifndef HIP_INCLUDE_HIP_HCC_DETAIL_LLVM_INTRINSICS_H
 #define HIP_INCLUDE_HIP_HCC_DETAIL_LLVM_INTRINSICS_H
 
+#include "hip/hcc_detail/hip_vector_types.h"
+#include "hip/hcc_detail/hip_fp16.h"
 #include "hip/hcc_detail/host_defines.h"
 
 __device__
@@ -66,5 +68,34 @@ int __llvm_amdgcn_ds_swizzle(int index, int pattern) __asm("llvm.amdgcn.ds.swizz
 __device__
 int __llvm_amdgcn_move_dpp(int src, int dpp_ctrl, int row_mask, int bank_mask,
                            bool bound_ctrl) __asm("llvm.amdgcn.mov.dpp.i32");
+
+// Deep learning builtins that are only supported on gfx906
+__device__
+float __llvm_amdgcn_fdot2(_Float16_2, _Float16_2, float, bool) 
+  __asm("llvm.amdgcn.fdot2");
+
+__device__
+int __llvm_amdgcn_sdot2(short2, short2, int, bool) 
+  __asm("llvm.amdgcn.sdot2");
+
+__device__
+unsigned int __llvm_amdgcn_udot2(ushort2, ushort2, unsigned int, bool)
+  __asm("llvm.amdgcn.udot2");
+
+__device__
+int __llvm_amdgcn_sdot4(int, int, int, bool)
+  __asm("llvm.amdgcn.sdot4");
+
+__device__
+unsigned int __llvm_amdgcn_udot4(unsigned int, unsigned int, unsigned int, bool)
+  __asm("llvm.amdgcn.udot4");
+
+__device__
+int __llvm_amdgcn_sdot8(int, int, int, bool)
+  __asm("llvm.amdgcn.sdot8");
+
+__device__
+unsigned int __llvm_amdgcn_udot8(unsigned int, unsigned int, unsigned int, bool)
+  __asm("llvm.amdgcn.udot8");
 
 #endif
