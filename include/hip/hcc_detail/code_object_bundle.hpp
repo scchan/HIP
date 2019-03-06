@@ -33,7 +33,7 @@ THE SOFTWARE.
 #include <vector>
 
 namespace hip_impl {
-hsa_isa_t triple_to_hsa_isa(const std::string& triple);
+hsa_isa_t triple_to_hsa_isa(const char* triple);
 
 struct Bundled_code {
     union Header {
