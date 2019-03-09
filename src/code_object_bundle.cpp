@@ -50,8 +50,8 @@ std::string isa_name(std::string triple)
     return triple;
 }
 
-hsa_isa_t hip_impl::triple_to_hsa_isa(const char* triple) {
-    const std::string isa{isa_name(std::string(triple))};
+hsa_isa_t hip_impl::triple_to_hsa_isa(const std::string& triple) {
+    const std::string isa{isa_name(std::move(triple))};
 
     if (isa.empty()) return hsa_isa_t({});
 

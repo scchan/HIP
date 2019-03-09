@@ -405,7 +405,7 @@ string code_object_blob_for_agent(const void* maybe_bundled_code, hsa_agent_t ag
     const auto agent_isa = isa(agent);
 
     const auto it = find_if(bundles(tmp).cbegin(), bundles(tmp).cend(), [=](const Bundled_code& x) {
-        return agent_isa == triple_to_hsa_isa(x.triple.c_str());
+        return agent_isa == triple_to_hsa_isa(x.triple);
         ;
     });
 

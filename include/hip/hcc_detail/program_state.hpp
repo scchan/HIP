@@ -174,7 +174,7 @@ const std::unordered_map<
                 if (!valid(tmp)) break;
 
                 for (auto&& bundle : bundles(tmp)) {
-                    r[triple_to_hsa_isa(bundle.triple.c_str())].push_back(bundle.blob);
+                    r[triple_to_hsa_isa(bundle.triple)].push_back(bundle.blob);
                 }
 
                 it += tmp.bundled_code_size;
