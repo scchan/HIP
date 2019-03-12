@@ -81,6 +81,7 @@ THE SOFTWARE.
 #else
 namespace hip_impl {
 struct Empty_launch_parm {};
+void hip_init();
 }  // namespace hip_impl
 #define hipLaunchParm hip_impl::Empty_launch_parm
 #endif  // GENERIC_GRID_LAUNCH
