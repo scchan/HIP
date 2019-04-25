@@ -426,6 +426,109 @@ namespace hip_impl {
 
         return r;
     }
+
+
+
+
+class agent_globals_impl {
+private:
+    std::pair<
+        std::mutex,
+        std::unordered_map<
+            std::string, std::vector<Agent_global>>> globals_from_module;
+
+    std::pair<
+        std::once_flag,
+        std::unordered_map<
+            hsa_agent_t, std::vector<Agent_global>>> globals_from_process;
+
+public:
+
+    hipError_t read_agent_global_from_module(hipDeviceptr_t* dptr, size_t* bytes,
+            hipModule_t hmod, const char* name) {
+        // the key of the map would the hash of code object associated with the
+        // hipModule_t instance
+        std::string key(hash_for(hmod));
+
+        if (globals_from_module.second.count(key) == 0) {
+            std::lock_guard<std::mutex> lck{globals_from_module.first};
+
+            if (globals_from_module.second.count(key) == 0) {
+                globals_from_module.second.emplace(
+                        key, read_agent_globals(this_agent(), executable_for(hmod)));
+            }
+        }
+
+        const auto it0 = globals_from_module.second.find(key);
+        if (it0 == globals_from_module.second.cend()) {
+            hip_throw(
+                    std::runtime_error{"agent_globals data structure corrupted."});
+        }
+
+        std::tie(*dptr, *bytes) = read_global_description(it0->second.cbegin(),
+                it0->second.cend(), name);
+
+        // HACK for SWDEV-173477
+        //
+        // For code objects with global symbols of length 0, ROCR runtime would
+        // ignore them even though they exist in the symbol table. Therefore the
+        // result from read_agent_globals() can't be trusted entirely.
+        //
+        // As a workaround to tame applications which depend on the existence of
+        // global symbols with length 0, always return hipSuccess here.
+        //
+        // This behavior shall be reverted once ROCR runtime has been fixed to
+        // address SWDEV-173477
+
+        //return *dptr ? hipSuccess : hipErrorNotFound;
+        return hipSuccess;
+    }
+
+    hipError_t read_agent_global_from_process(hipDeviceptr_t* dptr, size_t* bytes,
+            const char* name) {
+
+        std::call_once(globals_from_process.first, [this]() {
+            for (auto&& agent_executables : hip_impl::get_program_state().executables()) {
+                std::vector<Agent_global> tmp0;
+                for (auto&& executable : agent_executables.second) {
+                    auto tmp1 = read_agent_globals(agent_executables.first,
+                                                   executable);
+
+                    tmp0.insert(tmp0.end(), make_move_iterator(tmp1.begin()),
+                                make_move_iterator(tmp1.end()));
+                }
+                globals_from_process.second.emplace(agent_executables.first, move(tmp0));
+            }
+        });
+
+        const auto it = globals_from_process.second.find(this_agent());
+
+        if (it == globals_from_process.second.cend()) return hipErrorNotInitialized;
+
+        std::tie(*dptr, *bytes) = read_global_description(it->second.cbegin(),
+                it->second.cend(), name);
+
+        return *dptr ? hipSuccess : hipErrorNotFound;
+    }
+  
+};
+
+    agent_globals::agent_globals() : impl(new agent_globals_impl()) { 
+        if (!impl) 
+            hip_throw(
+                std::runtime_error{"Error when constructing agent global data structures."});
+    }
+    agent_globals::~agent_globals() { delete impl; }
+
+    hipError_t agent_globals::read_agent_global_from_module(hipDeviceptr_t* dptr, size_t* bytes,
+                                                            hipModule_t hmod, const char* name) {
+        return impl->read_agent_global_from_module(dptr, bytes, hmod, name);
+    }
+
+    hipError_t agent_globals::read_agent_global_from_process(hipDeviceptr_t* dptr, size_t* bytes,
+                                                             const char* name) {
+        return impl->read_agent_global_from_process(dptr, bytes, name);
+    }
 } // Namespace hip_impl.
 
 hipError_t ihipModuleGetFunction(hipFunction_t* func, hipModule_t hmod, const char* name) {
