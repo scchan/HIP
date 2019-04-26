@@ -114,8 +114,7 @@ inline std::vector<std::uint8_t> make_kernarg(
                            std::move(kernarg));
 }
 
-
-hsa_agent_t target_agent(hipStream_t stream);
+hipFunction_t hip_get_kernel_by_address(program_state &ps, std::uintptr_t function_address, hipStream_t stream);
 
 inline
 __attribute__((visibility("hidden")))
@@ -127,8 +126,7 @@ void hipLaunchKernelGGLImpl(
     hipStream_t stream,
     void** kernarg) {
 
-    const auto& kd = hip_impl::get_program_state().kernel_descriptor(function_address, 
-                                                               target_agent(stream));
+    const auto& kd = hip_get_kernel_by_address(hip_impl::get_program_state(), function_address, stream);
 
     hipModuleLaunchKernel(kd, numBlocks.x, numBlocks.y, numBlocks.z,
                           dimBlocks.x, dimBlocks.y, dimBlocks.z, sharedMemBytes,

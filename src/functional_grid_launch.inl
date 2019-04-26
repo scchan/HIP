@@ -57,4 +57,8 @@ namespace hip_impl
                 accelerator{}.get_default_view().get_hsa_agent());
         }
     }
+
+    hipFunction_t hip_get_kernel_by_address(program_state &ps, std::uintptr_t function_address, hipStream_t stream) {
+        return ps.kernel_descriptor(function_address, target_agent(stream));
+    }
 }
