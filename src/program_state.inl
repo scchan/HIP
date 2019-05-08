@@ -52,6 +52,93 @@ ELFIO::section* find_section_if(ELFIO::elfio& reader, P p) {
     return it != reader.sections.end() ? *it : nullptr;
 }
 
+static std::size_t parse_args(
+    const std::string& metadata,
+    std::size_t f,
+    std::size_t l,
+    std::vector<std::pair<std::size_t, std::size_t>>& size_align) {
+    if (f == l) return f;
+    if (!size_align.empty()) return l;
+
+    do {
+        static constexpr size_t size_sz{5};
+        f = metadata.find("Size:", f) + size_sz;
+
+        if (l <= f) return f;
+
+        auto size = std::strtoul(&metadata[f], nullptr, 10);
+
+        static constexpr size_t align_sz{6};
+        f = metadata.find("Align:", f) + align_sz;
+
+        char* l{};
+        auto align = std::strtoul(&metadata[f], &l, 10);
+
+        f += (l - &metadata[f]) + 1;
+
+        size_align.emplace_back(size, align);
+    } while (true);
+}
+
+static void read_kernarg_metadata(
+    ELFIO::elfio& reader,
+    std::unordered_map<
+    std::string,
+    std::vector<std::pair<std::size_t, std::size_t>>>& kernargs) {
+    // TODO: this is inefficient.
+    auto it = find_section_if(reader, [](const ELFIO::section* x) {
+                  return x->get_type() == SHT_NOTE;
+              });
+
+    if (!it) return;
+
+    const ELFIO::note_section_accessor acc{reader, it};
+    for (decltype(acc.get_notes_num()) i = 0; i != acc.get_notes_num(); ++i) {
+        ELFIO::Elf_Word type{};
+        std::string name{};
+        void* desc{};
+        ELFIO::Elf_Word desc_size{};
+
+        acc.get_note(i, type, name, desc, desc_size);
+
+        if (name != "AMD") continue; // TODO: switch to using NT_AMD_AMDGPU_HSA_METADATA.
+
+        std::string tmp{
+            static_cast<char*>(desc), static_cast<char*>(desc) + desc_size};
+
+        auto dx = tmp.find("Kernels:");
+
+        if (dx == std::string::npos) continue;
+
+        static constexpr decltype(tmp.size()) kernels_sz{8};
+        dx += kernels_sz;
+
+        do {
+            dx = tmp.find("Name:", dx);
+
+            if (dx == std::string::npos) break;
+
+            static constexpr decltype(tmp.size()) name_sz{5};
+            dx = tmp.find_first_not_of(" '", dx + name_sz);
+
+            auto fn = tmp.substr(dx, tmp.find_first_of("'\n", dx) - dx);
+            dx += fn.size();
+
+            auto dx1 = tmp.find("CodeProps", dx);
+            dx = tmp.find("Args:", dx);
+
+            if (dx1 < dx) {
+                dx = dx1;
+                continue;
+            }
+            if (dx == std::string::npos) break;
+
+            static constexpr decltype(tmp.size()) args_sz{5};
+            dx = parse_args(tmp, dx + args_sz, dx1, kernargs[fn]);
+        } while (true);
+    }
+}
+
 struct Symbol {
     std::string name;
     ELFIO::Elf64_Addr value = 0;
@@ -66,10 +153,17 @@ class Kernel_descriptor {
     std::uint64_t kernel_object_{};
     amd_kernel_code_t const* kernel_header_{nullptr};
     std::string name_{};
+    std::vector<std::pair<std::size_t, std::size_t>> kernarg_layout_{};
 public:
     Kernel_descriptor() = default;
-    Kernel_descriptor(std::uint64_t kernel_object, const std::string& name)
-        : kernel_object_{kernel_object}, name_{name}
+    Kernel_descriptor(
+        std::uint64_t kernel_object,
+        const std::string& name,
+        std::vector<std::pair<std::size_t, std::size_t>> kernarg_layout = {})
+        :
+        kernel_object_{kernel_object},
+        name_{name},
+        kernarg_layout_{std::move(kernarg_layout)}
     {
         bool supported{false};
         std::uint16_t min_v{UINT16_MAX};
@@ -546,93 +640,6 @@ public:
         }, agent);
 
         return functions[agent].second;
-    }
-
-    std::size_t parse_args(
-            const std::string& metadata,
-            std::size_t f,
-            std::size_t l,
-            std::vector<std::pair<std::size_t, std::size_t>>& size_align) {
-        if (f == l) return f;
-        if (!size_align.empty()) return l;
-
-        do {
-            static constexpr size_t size_sz{5};
-            f = metadata.find("Size:", f) + size_sz;
-
-            if (l <= f) return f;
-
-            auto size = std::strtoul(&metadata[f], nullptr, 10);
-
-            static constexpr size_t align_sz{6};
-            f = metadata.find("Align:", f) + align_sz;
-
-            char* l{};
-            auto align = std::strtoul(&metadata[f], &l, 10);
-
-            f += (l - &metadata[f]) + 1;
-
-            size_align.emplace_back(size, align);
-        } while (true);
-    }
-
-    void read_kernarg_metadata(
-            ELFIO::elfio& reader,
-            std::unordered_map<
-            std::string,
-            std::vector<std::pair<std::size_t, std::size_t>>>& kernargs) {
-        // TODO: this is inefficient.
-        auto it = find_section_if(reader, [](const ELFIO::section* x) {
-                return x->get_type() == SHT_NOTE;
-                });
-
-        if (!it) return;
-
-        const ELFIO::note_section_accessor acc{reader, it};
-        for (decltype(acc.get_notes_num()) i = 0; i != acc.get_notes_num(); ++i) {
-            ELFIO::Elf_Word type{};
-            std::string name{};
-            void* desc{};
-            ELFIO::Elf_Word desc_size{};
-
-            acc.get_note(i, type, name, desc, desc_size);
-
-            if (name != "AMD") continue; // TODO: switch to using NT_AMD_AMDGPU_HSA_METADATA.
-
-            std::string tmp{
-                static_cast<char*>(desc), static_cast<char*>(desc) + desc_size};
-
-            auto dx = tmp.find("Kernels:");
-
-            if (dx == std::string::npos) continue;
-
-            static constexpr decltype(tmp.size()) kernels_sz{8};
-            dx += kernels_sz;
-
-            do {
-                dx = tmp.find("Name:", dx);
-
-                if (dx == std::string::npos) break;
-
-                static constexpr decltype(tmp.size()) name_sz{5};
-                dx = tmp.find_first_not_of(" '", dx + name_sz);
-
-                auto fn = tmp.substr(dx, tmp.find_first_of("'\n", dx) - dx);
-                dx += fn.size();
-
-                auto dx1 = tmp.find("CodeProps", dx);
-                dx = tmp.find("Args:", dx);
-
-                if (dx1 < dx) {
-                    dx = dx1;
-                    continue;
-                }
-                if (dx == std::string::npos) break;
-
-                static constexpr decltype(tmp.size()) args_sz{5};
-                dx = parse_args(tmp, dx + args_sz, dx1, kernargs[fn]);
-            } while (true);
-        }
     }
 
     const std::unordered_map<std::string, 
