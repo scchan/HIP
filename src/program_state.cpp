@@ -99,7 +99,7 @@ public:
         std::once_flag,
         std::unordered_map<std::string, void*>> globals;
 
-
+    inline
     const std::unordered_map<
         hsa_isa_t, std::vector<std::vector<char>>>& get_code_object_blobs() {
 
@@ -145,6 +145,7 @@ public:
         return code_object_blobs.second;
     }
 
+    inline
     const std::unordered_map<
         std::string,
         std::pair<ELFIO::Elf64_Addr, ELFIO::Elf_Xword>>& get_symbol_addresses() {
