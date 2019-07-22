@@ -73,6 +73,10 @@ THE SOFTWARE.
   #define __dparm(x)
 #endif
 
+#ifdef __GNUC__
+#pragma GCC visibility push (default)
+#endif
+
 namespace hip_impl {
 hipError_t hip_init();
 }  // namespace hip_impl
@@ -3211,6 +3215,9 @@ hipError_t hipDestroySurfaceObject(hipSurfaceObject_t surfaceObject);
 
 #endif
 
+#ifdef __GNUC__
+#pragma GCC visibility pop
+#endif
 
 /**
  *-------------------------------------------------------------------------------------------------
