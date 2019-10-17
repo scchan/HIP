@@ -222,6 +222,10 @@ public:
                 const auto elf = (info->dlpi_addr && std::strlen(info->dlpi_name) != 0) ?
                     info->dlpi_name : "/proc/self/exe";
 
+                #if 1
+                std::cout << "get_code_object_blobls" << ": looking at " << elf << std::endl;
+                #endif
+
                 if (!tmp.load(elf)) return 0;
 
                 const auto it = find_section_if(tmp, [](const ELFIO::section* x) {
@@ -230,10 +234,16 @@ public:
 
                 if (!it) return 0;
 
+                #if 1
+                std::cout << "get_code_object_blobls" << ": found .kernel section in " << elf << std::endl;
+                #endif
+
                 auto& impl = *static_cast<program_state_impl*>(p);
 
                 std::vector<char> multi_arch_blob(it->get_data(), it->get_data() + it->get_size());
                 auto blob_it = multi_arch_blob.begin();
+
+                int num_blobs = 0;
                 while (blob_it != multi_arch_blob.end()) {
                     Bundled_code_header tmp{blob_it, multi_arch_blob.end()};
 
@@ -244,7 +254,11 @@ public:
                     }
 
                     blob_it += tmp.bundled_code_size;
+                    num_blobs++;
                 };
+                #if 1
+                std::cout << "get_code_object_blobls" << ": found " << num_blobs << " code blobs" << std::endl;
+                #endif
 
                 return 0;
             }, this);
@@ -387,14 +401,33 @@ public:
             delete p;
         };
 
+        hsa_status_t s;
+        
         RAII_code_reader tmp{new hsa_code_object_reader_t, cor_deleter};
-        hsa_code_object_reader_create_from_memory(
+        s = hsa_code_object_reader_create_from_memory(
             file.data(), file.size(), tmp.get());
 
-        hsa_executable_load_agent_code_object(
+        if (s!=HSA_STATUS_SUCCESS) {
+            std::cerr << "error in hsa_code_object_reader_create_from_memory" << std::endl;
+            abort();
+        }
+
+        s = hsa_executable_load_agent_code_object(
             executable, agent, *tmp, nullptr, nullptr);
 
-        hsa_executable_freeze(executable, nullptr);
+        if (s!=HSA_STATUS_SUCCESS) {
+            std::cerr << "error in hsa_executable_load_agent_code_object" << std::endl;
+            abort();
+        }
+
+
+        s = hsa_executable_freeze(executable, nullptr);
+
+        if (s!=HSA_STATUS_SUCCESS) {
+            std::cerr << "error in hsa_executable_freeze" << std::endl;
+            abort();
+        }
+
 
         std::lock_guard<std::mutex> lck{code_readers.first};
         code_readers.second.push_back(move(tmp));
@@ -538,18 +571,34 @@ public:
         }
 
         std::call_once(kernels[agent].first, [this](hsa_agent_t aa) {
+
+            static int num_kernel_symbol = 0;
             static const auto copy_kernels = [](
                 hsa_executable_t, hsa_agent_t a, hsa_executable_symbol_t x, void* p) {
                 auto& impl = *static_cast<program_state_impl*>(p);
-                if (type(x) == HSA_SYMBOL_KIND_KERNEL) impl.kernels[a].second[hip_impl::name(x)].push_back(x);
-
+                if (type(x) == HSA_SYMBOL_KIND_KERNEL) {
+                    impl.kernels[a].second[hip_impl::name(x)].push_back(x);
+                    #if 1
+                    std::cout << "get_kernels adding kernel " << hip_impl::name(x) << std::endl;
+                    num_kernel_symbol++;
+                    #endif
+                }
                 return HSA_STATUS_SUCCESS;
             };
 
+            int num_exe = 0;
             for (auto&& executable : get_executables(aa)) {
+                num_kernel_symbol = 0;
                 hsa_executable_iterate_agent_symbols(
                     executable, aa, copy_kernels, this);
+                #if 1
+                std::cout << "get_kernels: found " << num_kernel_symbol << " kernel symbols in executable #" << num_exe << std::endl;
+                #endif
+                num_exe++;
             }
+            #if 1
+            std::cout << "get_kernels processed " << num_exe << " executables" << std::endl;
+            #endif
         }, agent);
 
         return kernels[agent].second;
@@ -567,10 +616,22 @@ public:
             for (auto&& function : get_function_names()) {
                 auto it = get_kernels(aa).find(function.second);
 
+                std::string k_symbol = function.second;
+
                 if (it == get_kernels(aa).cend()) {
                     it = get_kernels(aa).find(function.second + ".kd");
                     if (it == get_kernels(aa).cend())
                         continue;
+                    k_symbol += ".kd";
+                }
+
+                const std::string f("_ZN10tensorflow7functor28FillPhiloxRandomKernelLaunchINS_6random19UniformDistributionINS2_12PhiloxRandomEfEEEEvS4_PNT_17ResultElementTypeExS6_");
+                if (function.second == f) {
+                    std::stringstream address_string;
+                    address_string << std::hex << function.first;
+                    std::cout << __FUNCTION__ << "found " << f << " in get_kernels()"
+                    << ", kernel_symbol=" << k_symbol
+                    << ", host_addr=" << address_string.str() << std::endl;
                 }
 
                 for (auto&& kernel_symbol : it->second) {
@@ -799,9 +860,13 @@ public:
         auto it0 = get_functions(agent).find(function_address);
 
         if (it0 == get_functions(agent).cend()) {
+            std::stringstream address_string;
+            address_string << std::hex << function_address;
             hip_throw(std::runtime_error{
                     "No device code available for function: " +
                     std::string(name(function_address)) +
+                    ", address=0x" +
+                    address_string.str() +
                     ", for agent: " + name(agent)});
         }
 
