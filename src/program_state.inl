@@ -374,6 +374,16 @@ public:
         }
     }
 
+    void check_hsa_status(hsa_status_t s, const char* file, uint32_t line_num) {
+        if (s != HSA_STATUS_SUCCESS) {
+            const char* es;
+            hsa_status_string(s, &es);
+            std::stringstream msg;
+            msg << file << ":" << line_num << " HSA ERROR - " << es << std::endl;
+            hip_throw(std::runtime_error(msg.str()));
+        }
+    }
+
     void load_code_object_and_freeze_executable(
         const std::string& file, hsa_agent_t agent, hsa_executable_t executable) {
         // TODO: the following sequence is inefficient, should be refactored
@@ -388,13 +398,16 @@ public:
         };
 
         RAII_code_reader tmp{new hsa_code_object_reader_t, cor_deleter};
-        hsa_code_object_reader_create_from_memory(
+        auto status = hsa_code_object_reader_create_from_memory(
             file.data(), file.size(), tmp.get());
+        check_hsa_status(status, __FILE__, __LINE__);
 
-        hsa_executable_load_agent_code_object(
+        status = hsa_executable_load_agent_code_object(
             executable, agent, *tmp, nullptr, nullptr);
+        check_hsa_status(status, __FILE__, __LINE__);
 
-        hsa_executable_freeze(executable, nullptr);
+        status = hsa_executable_freeze(executable, nullptr);
+        check_hsa_status(status, __FILE__, __LINE__);
 
         std::lock_guard<std::mutex> lck{code_readers.first};
         code_readers.second.push_back(move(tmp));
@@ -530,6 +543,16 @@ public:
         return function_names.second;
     }
 
+    inline std::string symbol_name(hsa_executable_symbol_t x) {
+        std::uint32_t sz = 0u;
+        hsa_executable_symbol_get_info(x, HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, &sz);
+
+        std::string r(sz, '\0');
+        hsa_executable_symbol_get_info(x, HSA_EXECUTABLE_SYMBOL_INFO_NAME, &r.front());
+
+        return r;
+    }
+
     const std::unordered_map<
         std::string, std::vector<hsa_executable_symbol_t>>& get_kernels(hsa_agent_t agent) {
 
@@ -541,8 +564,13 @@ public:
             static const auto copy_kernels = [](
                 hsa_executable_t, hsa_agent_t a, hsa_executable_symbol_t x, void* p) {
                 auto& impl = *static_cast<program_state_impl*>(p);
-                if (type(x) == HSA_SYMBOL_KIND_KERNEL) impl.kernels[a].second[hip_impl::name(x)].push_back(x);
 
+                if (type(x) == HSA_SYMBOL_KIND_KERNEL) {
+                    impl.kernels[a].second[hip_impl::name(x)].push_back(x);
+                    std::cout << "get_kernels: " << hip_impl::name(x) << " is a kernel symbol" << std::endl;
+                } else {
+                    std::cout << "get_kernels: " << hip_impl::name(x) << " is not a kernel symbol" << std::endl;
+                }
                 return HSA_STATUS_SUCCESS;
             };
 
