@@ -311,9 +311,10 @@ hipError_t hipHccModuleLaunchKernel(hipFunction_t f, uint32_t globalWorkSizeX,
         localWorkSizeZ, sharedMemBytes, hStream, kernelParams, extra, startEvent, stopEvent, 0));
 }
 
-hipError_t hipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
-                                              int  numDevices, unsigned int  flags) {
-    HIP_INIT_API(hipExtLaunchMultiKernelMultiDevice, launchParamsList, numDevices, flags);
+namespace hip_internal {
+hipError_t ihipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
+                                              int  numDevices, unsigned int  flags, const program_state& ps) {
+    //HIP_INIT_API(hipExtLaunchMultiKernelMultiDevice, launchParamsList, numDevices, flags);
     hipError_t result;
 
     if ((numDevices > g_deviceCnt) || (launchParamsList == nullptr)) {
@@ -332,13 +333,13 @@ hipError_t hipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
             free(kds);
             return ihipLogStatus(hipErrorNotInitialized);
         }
-        kds[i] = hip_impl::get_program_state().kernel_descriptor(reinterpret_cast<std::uintptr_t>(lp.func),
+        kds[i] = ps.kernel_descriptor(reinterpret_cast<std::uintptr_t>(lp.func),
                 hip_impl::target_agent(lp.stream));
         if (kds[i] == nullptr) {
             free(kds);
             return ihipLogStatus(hipErrorInvalidValue);
         }
-        hip_impl::kernargs_size_align kargs = hip_impl::get_program_state().get_kernargs_size_align(
+        hip_impl::kernargs_size_align kargs = ps.get_kernargs_size_align(
                 reinterpret_cast<std::uintptr_t>(lp.func));
         kds[i]->_kernarg_layout = *reinterpret_cast<const std::vector<std::pair<std::size_t, std::size_t>>*>(
                 kargs.getHandle());
@@ -378,6 +379,7 @@ hipError_t hipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
     free(kds);
 
     return ihipLogStatus(result);
+}
 }
 
 namespace {

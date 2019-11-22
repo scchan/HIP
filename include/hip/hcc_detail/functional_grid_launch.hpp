@@ -124,6 +124,19 @@ void hipLaunchKernelGGLImpl(
                           dimBlocks.x, dimBlocks.y, dimBlocks.z, sharedMemBytes,
                           stream, nullptr, kernarg);
 }
+
+hipError_t ihipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
+                                              int  numDevices, unsigned int  flags, const program_state& ps);
+
+inline
+__attribute__((visibility("hidden")))
+hipError_t hipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
+                                                  int  numDevices, unsigned int  flags) {
+
+    const auto& ps = hip_impl::get_program_state();
+    return ihipExtLaunchMultiKernelMultiDevice(launchParamsList, numDevices, flags, ps);
+
+}
 } // Namespace hip_impl.
 
 
@@ -175,5 +188,5 @@ void hipLaunchKernelGGL(F kernel, const dim3& numBlocks, const dim3& dimBlocks,
     hip_impl::hipLaunchKernelGGLImpl(reinterpret_cast<std::uintptr_t>(kernel),
                                      numBlocks, dimBlocks, sharedMemBytes,
                                      stream, &config[0]);
-}
+
 #pragma GCC visibility pop
