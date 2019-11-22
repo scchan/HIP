@@ -2971,8 +2971,8 @@ hipError_t hipOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(
  *
  * @returns hipSuccess, hipInvalidDevice, hipErrorNotInitialized, hipErrorInvalidValue
  */
-hipError_t hipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
-                                              int  numDevices, unsigned int  flags);
+//hipError_t hipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
+//                                              int  numDevices, unsigned int  flags);
 
 
 // doxygen end Version Management
@@ -3395,11 +3395,11 @@ inline hipError_t hipLaunchCooperativeKernelMultiDevice(hipLaunchParams* launchP
     return hipLaunchCooperativeKernelMultiDevice(launchParamsList, numDevices, flags);
 }
 
-template <class T>
+/*template <class T>
 inline hipError_t hipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
                                                      unsigned int  numDevices, unsigned int  flags = 0) {
     return hipExtLaunchMultiKernelMultiDevice(launchParamsList, numDevices, flags);
-}
+}*/
 
 
 /*

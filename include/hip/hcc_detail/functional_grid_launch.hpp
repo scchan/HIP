@@ -36,6 +36,9 @@ THE SOFTWARE.
 
 #pragma GCC visibility push(hidden)
 
+hipError_t ihipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
+                                              int  numDevices, unsigned int  flags, const hip_impl::program_state& ps);
+
 namespace hip_impl {
 template <typename T, typename std::enable_if<std::is_integral<T>{}>::type* = nullptr>
 inline T round_up_to_next_multiple_nonnegative(T x, T y) {
@@ -125,8 +128,9 @@ void hipLaunchKernelGGLImpl(
                           stream, nullptr, kernarg);
 }
 
-hipError_t ihipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
-                                              int  numDevices, unsigned int  flags, const program_state& ps);
+
+} // Namespace hip_impl.
+
 
 inline
 __attribute__((visibility("hidden")))
@@ -137,8 +141,6 @@ hipError_t hipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
     return ihipExtLaunchMultiKernelMultiDevice(launchParamsList, numDevices, flags, ps);
 
 }
-} // Namespace hip_impl.
-
 
 template <typename F>
 inline
@@ -188,5 +190,5 @@ void hipLaunchKernelGGL(F kernel, const dim3& numBlocks, const dim3& dimBlocks,
     hip_impl::hipLaunchKernelGGLImpl(reinterpret_cast<std::uintptr_t>(kernel),
                                      numBlocks, dimBlocks, sharedMemBytes,
                                      stream, &config[0]);
-
+}
 #pragma GCC visibility pop

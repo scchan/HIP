@@ -311,10 +311,10 @@ hipError_t hipHccModuleLaunchKernel(hipFunction_t f, uint32_t globalWorkSizeX,
         localWorkSizeZ, sharedMemBytes, hStream, kernelParams, extra, startEvent, stopEvent, 0));
 }
 
-namespace hip_internal {
+
 hipError_t ihipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
-                                              int  numDevices, unsigned int  flags, const program_state& ps) {
-    //HIP_INIT_API(hipExtLaunchMultiKernelMultiDevice, launchParamsList, numDevices, flags);
+                                              int  numDevices, unsigned int  flags, hip_impl::program_state& ps) {
+    HIP_INIT_API(ihipExtLaunchMultiKernelMultiDevice, launchParamsList, numDevices, flags);
     hipError_t result;
 
     if ((numDevices > g_deviceCnt) || (launchParamsList == nullptr)) {
@@ -380,7 +380,7 @@ hipError_t ihipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList
 
     return ihipLogStatus(result);
 }
-}
+
 
 namespace {
 // kernel for initializing GWS
