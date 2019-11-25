@@ -312,6 +312,7 @@ hipError_t hipHccModuleLaunchKernel(hipFunction_t f, uint32_t globalWorkSizeX,
 }
 
 
+__attribute__((visibility("default")))
 hipError_t ihipExtLaunchMultiKernelMultiDevice(hipLaunchParams* launchParamsList,
                                               int  numDevices, unsigned int  flags, hip_impl::program_state& ps) {
     HIP_INIT_API(ihipExtLaunchMultiKernelMultiDevice, launchParamsList, numDevices, flags);
