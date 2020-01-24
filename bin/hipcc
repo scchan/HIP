@@ -873,7 +873,8 @@ if($HIP_PLATFORM eq "hcc" or $HIP_PLATFORM eq "clang"){
 # hcc defaults to v2, so we need to convert to the appropriate flag
 # hip-clang defaults to v3, so we don't need to do anything
 if ($coFormatv3 and $HIP_PLATFORM eq 'hcc') {
-    $HIPLDFLAGS .= " -Wl,-hcc-cov3 ";
+    $HIPLDFLAGS .= " -hcc-cov3";
+    $HIPCXXFLAGS .= " -hcc-cov3";
 }
 
 if ($hasC and $HIP_PLATFORM eq 'nvcc') {
